@@ -23,6 +23,7 @@ use crate::{
 mod event;
 mod realm;
 mod series;
+mod playlist;
 
 
 /// Marker type to signal that the search functionality is unavailable for some
@@ -72,6 +73,13 @@ impl SearchResults<search::Event> {
 #[juniper::graphql_object(Context = Context, name = "SeriesSearchResults")]
 impl SearchResults<search::Series> {
     fn items(&self) -> &[search::Series] {
+        &self.items
+    }
+}
+
+#[juniper::graphql_object(Context = Context, name = "PlaylistSearchResults")]
+impl SearchResults<search::Playlist> {
+    fn items(&self) -> &[search::Playlist] {
         &self.items
     }
 }
@@ -428,6 +436,54 @@ pub(crate) async fn all_series(
     let total_hits = results.estimated_total_hits.unwrap_or(0);
 
     Ok(SeriesSearchOutcome::Results(SearchResults { items, total_hits }))
+}
+
+#[derive(juniper::GraphQLUnion)]
+#[graphql(Context = Context)]
+pub(crate) enum PlaylistSearchOutcome {
+    SearchUnavailable(SearchUnavailable),
+    Results(SearchResults<search::Playlist>),
+}
+
+pub(crate) async fn all_playlists(
+    user_query: &str,
+    writable_only: bool,
+    context: &Context,
+) -> ApiResult<PlaylistSearchOutcome> {
+    if !context.auth.is_user() {
+        return Err(context.not_logged_in_error());
+    }
+
+    let filter = Filter::make_or_none_for_admins(context, || {
+        let writable = Filter::acl_access("write_roles", context);
+
+        // All users can always find all items they have write access to,
+        // regardless whether they are listed or not.
+        if writable_only {
+            return writable;
+        }
+
+        // Since series read_roles are not used for access control, we only need
+        // to check whether we can return unlisted videos.
+        if context.auth.can_find_unlisted_items(&context.config.auth) {
+            Filter::None
+        } else {
+            Filter::or([writable, Filter::listed()])
+        }
+    }).to_string();
+
+    let res = context.search.playlist_index.search()
+        .with_query(user_query)
+        .with_show_matches_position(true)
+        .with_filter(&filter)
+        .with_limit(50)
+        .execute::<search::Playlist>()
+        .await;
+    let results = handle_search_result!(res, PlaylistSearchOutcome);
+    let items = results.hits.into_iter().map(|h| h.result).collect();
+    let total_hits = results.estimated_total_hits.unwrap_or(0);
+
+    Ok(PlaylistSearchOutcome::Results(SearchResults { items, total_hits }))
 }
 
 // TODO: replace usages of this and remove this.
