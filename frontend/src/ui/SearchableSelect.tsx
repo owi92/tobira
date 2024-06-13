@@ -12,6 +12,9 @@ import { SmallDescription } from "./metadata";
 import { SearchableSelectSeriesQuery } from "./__generated__/SearchableSelectSeriesQuery.graphql";
 import { ErrorDisplay } from "../util/err";
 import { COLORS } from "../color";
+import {
+    SearchableSelectPlaylistsQuery,
+} from "./__generated__/SearchableSelectPlaylistsQuery.graphql";
 
 
 type DerivedProps<T> = Omit<Parameters<typeof AsyncSelect<T>>[0],
@@ -115,27 +118,28 @@ export const theme = (theme: Theme) => ({
 
 
 
-type SeriesSelectorProps = DerivedProps<SeriesOption> & {
-    onChange?: (series: SeriesOption | null) => void;
+type VideoListSelectorProps = DerivedProps<VideoListOption> & {
+    onChange?: (videoList: VideoListOption | null) => void;
     onBlur?: () => void;
-    defaultValue?: SeriesOption;
+    defaultValue?: VideoListOption;
     writableOnly?: boolean;
+    type: "playlist" | "series";
 };
 
-type SeriesOption = {
+export type VideoListOption = {
     readonly id: string;
     readonly opencastId: string;
     readonly title: string;
     readonly description?: string | null;
 };
 
-export const SeriesSelector: React.FC<SeriesSelectorProps> = ({
-    writableOnly = false, onBlur, onChange, defaultValue, inputId, ...rest
+export const VideoListSelector: React.FC<VideoListSelectorProps> = ({
+    writableOnly = false, onBlur, onChange, defaultValue, inputId, type, ...rest
 }) => {
     const { t } = useTranslation();
     const [error, setError] = useState<ReactNode>(null);
 
-    const query = graphql`
+    const seriesQuery = graphql`
         query SearchableSelectSeriesQuery($q: String!, $writableOnly: Boolean!) {
             series: searchAllSeries(query: $q, writableOnly: $writableOnly) {
                 ... on SeriesSearchResults {
@@ -145,33 +149,69 @@ export const SeriesSelector: React.FC<SeriesSelectorProps> = ({
         }
     `;
 
-    const load = (input: string, callback: (options: readonly SeriesOption[]) => void) => {
-        fetchQuery<SearchableSelectSeriesQuery>(environment, query, { q: input, writableOnly })
-            .subscribe({
-                next: ({ series }) => {
-                    if (series.items === undefined) {
-                        setError(t("search.unavailable"));
-                        return;
-                    }
+    const playlistsQuery = graphql`
+        query SearchableSelectPlaylistsQuery($q: String!, $writableOnly: Boolean!) {
+            playlists: searchAllPlaylists(query: $q, writableOnly: $writableOnly) {
+                ... on PlaylistSearchResults {
+                    items { id opencastId title description }
+                }
+            }
+        }
+    `;
 
-                    callback(series.items.map(item => ({
-                        ...item,
-                        // Series returned by the search API have a different ID
-                        // prefix than other series. And the mutation expects an ID
-                        // starting with `ev`.
-                        id: item.id.replace(/^ss/, "sr"),
-                    })));
-                },
-                start: () => {},
-                error: (error: Error) => setError(<ErrorDisplay error={error} />),
-            });
+    const loadSeries = (input: string, callback: (options: readonly VideoListOption[]) => void) => {
+        fetchQuery<SearchableSelectSeriesQuery>(
+            environment, seriesQuery, { q: input, writableOnly }
+        ).subscribe({
+            next: ({ series }) => {
+                if (series.items === undefined) {
+                    setError(t("search.unavailable"));
+                    return;
+                }
+
+                callback(series.items.map(item => ({
+                    ...item,
+                    // Series returned by the search API have a different ID
+                    // prefix than other series. And the mutation expects an ID
+                    // starting with `sr`.
+                    id: item.id.replace(/^ss/, "sr"),
+                })));
+            },
+            start: () => {},
+            error: (error: Error) => setError(<ErrorDisplay error={error} />),
+        });
+    };
+
+    const loadPlaylists = (
+        input: string, callback: (options: readonly VideoListOption[]) => void
+    ) => {
+        fetchQuery<SearchableSelectPlaylistsQuery>(
+            environment, playlistsQuery, { q: input, writableOnly }
+        ).subscribe({
+            next: ({ playlists }) => {
+                if (playlists.items === undefined) {
+                    setError(t("search.unavailable"));
+                    return;
+                }
+
+                callback(playlists.items.map(item => ({
+                    ...item,
+                    // Series returned by the search API have a different ID
+                    // prefix than other series. And the mutation expects an ID
+                    // starting with `pl`.
+                    id: item.id.replace(/^ps/, "pl"),
+                })));
+            },
+            start: () => {},
+            error: (error: Error) => setError(<ErrorDisplay error={error} />),
+        });
     };
 
     return <>
         {error && <Card kind="error" css={{ marginBottom: 8 }}>{error}</Card>}
         <SearchableSelect
-            loadOptions={load}
-            format={formatSeriesOption}
+            loadOptions={type === "series" ? loadSeries : loadPlaylists}
+            format={formatVideoListOption}
             onChange={onChange}
             isDisabled={!!error}
             {...{ onBlur, defaultValue, inputId }}
@@ -180,9 +220,9 @@ export const SeriesSelector: React.FC<SeriesSelectorProps> = ({
     </>;
 };
 
-const formatSeriesOption = (series: SeriesOption, _: TFunction) => (
+const formatVideoListOption = (videoList: VideoListOption, _: TFunction) => (
     <div>
-        <div>{series.title}</div>
-        <SmallDescription css={{ margin: 0 }} lines={1} text={series.description} />
+        <div>{videoList.title}</div>
+        <SmallDescription css={{ margin: 0 }} lines={1} text={videoList.description} />
     </div>
 );
