@@ -177,6 +177,10 @@ video:
     rss: RSS
     show-qr-code: QR Code anzeigen
 
+playlist:
+  deleted-video-block: Die hier referenzierte Playlist wurde gelöscht.
+  not-allowed-video-block: Sie sind nicht autorisiert, die hier eingebettete Playlist zu sehen.
+
 series:
   series: Serie
   deleted: Gelöschte Serie
@@ -531,6 +535,7 @@ manage:
       add-text: Text
       add-series: Serie
       add-video: Video
+      add-playlist: Playlist
 
       move-down: Block nach unten verschieben
       move-up: Block nach oben verschieben
