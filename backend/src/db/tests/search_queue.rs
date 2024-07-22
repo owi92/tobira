@@ -20,6 +20,7 @@ struct Setup {
     video_b: Key,
     series_a: Key,
     series_empty: Key,
+    playlist: Key,
 }
 
 /// Create a test DB with a few test objects in it. The search queue is cleared
@@ -46,10 +47,17 @@ async fn setup() -> Result<(TestDb, Setup)> {
     let video_free = db.add_event("Lonely", 123, "lonely-123", None).await?;
     let video_a = db.add_event("Video A", 60, "video-a", Some(series_a)).await?;
     let video_b = db.add_event("Video B", 80, "video-b", Some(series_a)).await?;
+    let playlist = db.add_playlist("Moon", "Man", vec![
+        crate::db::types::PlaylistEntry {
+            entry_id: 1,
+            ty: crate::db::types::PlaylistEntryType::Event, // Replace Event with an appropriate variant
+            content_id: String::from("lonely-123"),
+        }
+    ]).await?;
 
     db.clear_search_queue().await?;
     Ok((db, Setup {
-        animals, people, cat, dog, momo, video_free, video_a, video_b, series_a, series_empty,
+        animals, people, cat, dog, momo, video_free, video_a, video_b, series_a, series_empty, playlist
     }))
 }
 
@@ -65,15 +73,17 @@ async fn on_realm_add() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn on_realm_change() -> Result<()> {
     let (db, Setup {
-        cat, animals, people, momo, dog, video_free, video_a, video_b, series_a, series_empty, ..
+        cat, animals, people, momo, dog, video_free, video_a, video_b, series_a, series_empty, playlist, ..
     }) = setup().await?;
 
-    // Mount series and videos into some realms.
+    // Mount series, playlist and videos into some realms.
     db.add_video_block(animals, video_free, 0).await?;
     let cat_series_block = db.add_series_block(cat, series_a, 0).await?;
     db.add_series_block(people, series_empty, 0).await?;
     db.add_series_block(dog, series_empty, 0).await?;
+    db.add_playlist_block(momo, playlist, 0).await?;
     assert_eq!(db.search_queue().await?, set![
+        (playlist, IndexItemKind::Playlist),
         (series_a, IndexItemKind::Series),
         (series_empty, IndexItemKind::Series),
         (video_a, IndexItemKind::Event),

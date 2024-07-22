@@ -2,7 +2,7 @@ use std::{ops::Deref, collections::HashSet};
 use secrecy::ExposeSecret;
 use tokio_postgres::{Client, NoTls};
 
-use crate::{prelude::*, db::types::Key, search::IndexItemKind};
+use crate::{db::types::{Key, PlaylistEntry}, prelude::*, search::IndexItemKind};
 use super::DbConfig;
 
 
@@ -124,6 +124,23 @@ impl TestDb {
         Ok(row.get::<_, Key>(0))
     }
 
+    pub(super) async fn add_playlist(
+        &self,
+        title: &str,
+        opencast_id: &str,
+        entries: Vec<PlaylistEntry>,
+    ) -> Result<Key> {
+        let row = self.query_one(
+            "insert into playlists
+                (opencast_id, title, entries, read_roles, write_roles, updated)
+                values
+                ($1, $2, $3, '{}', '{}', now())
+                returning id",
+            &[&title, &opencast_id, &entries],
+        ).await?;
+        Ok(row.get::<_, Key>(0))
+    }
+
     pub(super) async fn add_video_block(&self, realm: Key, video: Key, index: u8) -> Result<Key> {
         let row = self.query_one(
             "insert into blocks (realm, index, type, video, show_title)
@@ -140,6 +157,16 @@ impl TestDb {
                 values ($1, $2, 'series', $3, true, 'new_to_old', 'gallery')
                 returning id",
             &[&realm, &(index as i16), &series],
+        ).await?;
+        Ok(row.get::<_, Key>(0))
+    }
+
+    pub(super) async fn add_playlist_block(&self, realm: Key, playlist: Key, index: u8) -> Result<Key> {
+        let row = self.query_one(
+            "insert into blocks (realm, index, type, playlist, show_title, videolist_order, videolist_layout)
+                values ($1, $2, 'playlist', $3, true, 'new_to_old', 'gallery')
+                returning id",
+            &[&realm, &(index as i16), &playlist],
         ).await?;
         Ok(row.get::<_, Key>(0))
     }
