@@ -231,10 +231,15 @@ impl AuthorizedEvent {
                 and ( \
                     type = 'video' and video = $1 \
                     or type = 'series' and series = $2 \
+                    or type = 'playlist' and playlist = any( \
+                        select id \
+                        from playlists \
+                        where $3 = any(array(select content_id from unnest(entries))) \
+                    ) \
                 ) \
             ) \
         ");
-        context.db.query_mapped(&query, dbargs![&self.key, &self.series], |row| Realm::from_row_start(&row))
+        context.db.query_mapped(&query, dbargs![&self.key, &self.series, &self.opencast_id], |row| Realm::from_row_start(&row))
             .await?
             .pipe(Ok)
     }

@@ -92,6 +92,11 @@ as $$
             inner join events on (
                 type = 'series' and the_blocks.series = events.series
                 or type = 'video' and the_blocks.video = events.id
+                or type = 'playlist' and the_blocks.playlist = any(
+                    select id from playlists where events.opencast_id = any(
+                        array(select content_id from unnest(entries))
+                    )
+                )
             )
         ),
         the_series as (
