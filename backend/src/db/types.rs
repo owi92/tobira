@@ -2,7 +2,7 @@ use std::{fmt, collections::HashMap};
 
 use bytes::BytesMut;
 use chrono::{DateTime, Utc};
-use juniper::GraphQLEnum;
+use juniper::{GraphQLEnum, GraphQLObject};
 use postgres_types::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
@@ -241,4 +241,11 @@ impl<'a> FromSql<'a> for CustomActions {
     fn accepts(ty: &postgres_types::Type) -> bool {
         <serde_json::Value as FromSql>::accepts(ty)
     }
+}
+
+#[derive(Debug, ToSql, FromSql, GraphQLObject)]
+#[postgres(name = "credentials")]
+pub(crate) struct Credentials {
+    pub(crate) name: String,
+    pub(crate) password: String,
 }
