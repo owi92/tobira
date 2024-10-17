@@ -11,6 +11,7 @@ import { getEventTimeInfo } from "../../util/video";
 import { Spinner } from "@opencast/appkit";
 import { RelativeDate } from "../time";
 import { COLORS } from "../../color";
+import { AuthorizedData } from "../../routes/Video";
 
 
 export type PlayerProps = {
@@ -40,13 +41,7 @@ export type PlayerEvent = {
         endTime?: string | null;
         duration: number;
     };
-    authorizedData: {
-        tracks: readonly Track[];
-        captions: readonly Caption[];
-        thumbnail?: string | null;
-        segments: readonly Segment[];
-    };
-};
+} & AuthorizedData;
 
 export type Track = {
     uri: string;
@@ -127,6 +122,9 @@ const delayTill = (date: Date): number => {
  * in order to work correctly.
  */
 export const InlinePlayer: React.FC<PlayerProps> = ({ className, event, ...playerProps }) => {
+    if (!event.authorizedData) {
+        return null;
+    }
     const aspectRatio = getPlayerAspectRatio(event.authorizedData.tracks);
     const isDark = useColorScheme().scheme === "dark";
     const ref = useRef<HTMLDivElement>(null);

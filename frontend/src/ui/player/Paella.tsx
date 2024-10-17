@@ -34,7 +34,7 @@ const PaellaPlayer: React.FC<PaellaPlayerProps> = ({ event }) => {
     useEffect(() => {
         // If the ref is not set yet (which should not usually happen), we do
         // nothing.
-        if (!ref.current) {
+        if (!ref.current || !event.authorizedData) {
             return;
         }
 
@@ -95,7 +95,10 @@ const PaellaPlayer: React.FC<PaellaPlayerProps> = ({ event }) => {
                     // improved in the future, hopefully by getting better information.
                     text: t("video.caption")
                         + (lang ? ` (${lang})` : "")
-                        + (event.authorizedData.captions.length > 1 ? ` [${index + 1}]` : ""),
+                        + (event.authorizedData && event.authorizedData.captions.length > 1
+                            ? ` [${index + 1}]`
+                            : ""
+                        ),
                 })),
                 frameList: event.authorizedData.segments.map(segment => {
                     const time = segment.startTime / 1000;
