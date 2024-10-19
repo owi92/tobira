@@ -35,6 +35,7 @@ import {
     keyOfId,
     playlistId,
     getCredentials,
+    useAuthenticatedDataQuery,
 } from "../util";
 import { BREAKPOINT_SMALL, BREAKPOINT_MEDIUM } from "../GlobalStyle";
 import { LinkButton } from "../ui/LinkButton";
@@ -470,10 +471,28 @@ const VideoPage: React.FC<Props> = ({ eventRef, realmRef, playlistRef, basePath 
     if (event.__typename !== "AuthorizedEvent") {
         return unreachable();
     }
-
     if (!isSynced(event)) {
         return <WaitingPage type="video" />;
     }
+
+    // ===ETH SPECIAL FEATURE===
+    // If the event is password protected and `interpret_eth_passwords` is enabled, this will check
+    // if there are credentials for this event's series are stored, and if so, skip the
+    // authentication.
+    // Ideally this would happen at the top level in the `makeRoute` call, but at that point the
+    // series id isn't known. To prevent unnecessary queries, the hook is also passed the authorized
+    // data of this event. If that is neither null nor undefined, nothing is fetched.
+    //
+    // This extra check is particularly useful in this specific component, where we might run into a
+    // situation where an event has been previously authenticated and its credentials are stored
+    // with both its own id (with which it is possible to already fetch the authenticated data in
+    // the initial video page query) and its series id. So when the authenticated data is already
+    // present, it shouldn't be fetched a second time.
+    const authorizedData = useAuthenticatedDataQuery(
+        event.id,
+        event.series?.id,
+        { authorizedData: event.authorizedData },
+    );
 
     const breadcrumbs = realm.isMainRoot ? [] : realmBreadcrumbs(t, realm.ancestors.concat(realm));
     const { hasStarted, hasEnded } = getEventTimeInfo(event);
@@ -503,12 +522,9 @@ const VideoPage: React.FC<Props> = ({ eventRef, realmRef, playlistRef, basePath 
         <Breadcrumbs path={breadcrumbs} tail={event.title} />
         <script type="application/ld+json">{JSON.stringify(structuredData)}</script>
         <PlayerContextProvider>
-            {event.authorizedData
+            {authorizedData
                 ? <InlinePlayer
-                    event={{
-                        ...event,
-                        authorizedData: event.authorizedData,
-                    }}
+                    event={{ ...event, authorizedData }}
                     css={{ margin: "-4px auto 0" }}
                     onEventStateChange={rerender}
                 />
@@ -618,6 +634,12 @@ const ProtectedPlayer: React.FC<ProtectedPlayerProps> = ({ event, embedded }) =>
                 storage.setItem(CREDENTIALS_STORAGE_KEY + keyOfId(event.id), credentials);
                 storage.setItem(CREDENTIALS_STORAGE_KEY + event.opencastId, credentials);
 
+                // ===ETH SPECIAL FEATURE===
+                // If `interpret_eth_passwords` is enabled, this stores the series id of the event.
+                // With that, each other event of that series will also be unlocked.
+                if (CONFIG.sync.interpretETHPasswords && event.series?.id) {
+                    storage.setItem(CREDENTIALS_STORAGE_KEY + event.series.id, credentials);
+                }
             },
             error: (error: Error) => {
                 setAuthError(error.message);

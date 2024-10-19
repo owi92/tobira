@@ -295,6 +295,7 @@ fn frontend_config(config: &Config) -> serde_json::Value {
         },
         "sync": {
             "pollPeriod": config.sync.poll_period.as_secs_f64(),
+            "interpretETHPasswords": config.sync.interpret_eth_passwords,
         },
     })
 }

@@ -7,7 +7,7 @@ import { useLazyLoadQuery } from "react-relay";
 
 import CONFIG, { TranslatedString } from "../config";
 import { TimeUnit } from "../ui/Input";
-import { authorizedDataQuery, CREDENTIALS_STORAGE_KEY } from "../routes/Video";
+import { AuthorizedData, authorizedDataQuery, CREDENTIALS_STORAGE_KEY } from "../routes/Video";
 import {
     VideoAuthorizedDataQuery$data,
 } from "../routes/__generated__/VideoAuthorizedDataQuery.graphql";
@@ -253,19 +253,34 @@ interface AuthenticatedData extends OperationType {
 /**
  * Returns `authorizedData` of password protected events by fetching it from the API,
  * if the correct credentials were supplied.
- * This will not send a request when there are no credentials.
+ * This will not send a request when there are no credentials and instead return the
+ * event's authorized data if that was already present and passed to this hook.
+ *
+ * ===ETH SPECIAL FEATURE===
+ * This can be passed a series id and the authenticated data of an event.
+ * If the `interpret_eth_passwords` feature is enabled, this will check if credentials
+ * with that reference are stored and, if they are and the authenticated data is not yet
+ * present, query and return that data.
  */
-export const useAuthenticatedDataQuery = (id: string) => {
-    const credentials = getCredentials(keyOfId(id));
-    return useLazyLoadQuery<AuthenticatedData>(
+export const useAuthenticatedDataQuery = (
+    eventID: string,
+    seriesID?: string,
+    authData?: AuthorizedData | null,
+) => {
+    // If `id` is coming from a search event, the prefix might be `es` or `ss`, but
+    // the query and storage need it to be an event/series id (i.e. with prefix `ev`/`sr`).
+    const credentials = seriesID && CONFIG.sync.interpretETHPasswords
+        ? getCredentials(seriesId(keyOfId(seriesID)))
+        : getCredentials(eventID);
+    const authenticatedData = useLazyLoadQuery<AuthenticatedData>(
         authorizedDataQuery,
-        // If `id` is coming from a search event, the prefix might be `es`, but
-        // the query needs it to be an event id (i.e. with prefix `ev`).
-        { eventId: eventId(keyOfId(id)), ...credentials },
-        // This will only query the data for events with credentials.
-        // Unnecessary queries are prevented.
-        { fetchPolicy: !credentials ? "store-only" : "store-or-network" }
+        { eventId: eventId(keyOfId(eventID)), ...credentials },
+        // This will only query the data for events with stored credentials and/or yet unknown
+        // authorized data. This should help to prevent unnecessary queries.
+        { fetchPolicy: !(credentials || authData) ? "store-only" : "store-or-network" }
     );
+
+    return authData?.authorizedData ?? authenticatedData?.authorizedEvent?.authorizedData;
 };
 
 /**
@@ -277,10 +292,15 @@ export const useAuthenticatedDataQuery = (id: string) => {
  * so we only have access to the single event ID from the url.
  * In order to have a successful check when visiting a video page with either Tobira ID
  * or Opencast ID in the url, this check accepts both ID kinds.
+ *
+ * ===ETH SPECIAL FEATURE===
+ * If the `interpret_eth_passwords` feature is enabled, this will also return credentials for
+ * a passed series ID, if stored. With this, unlocking an event of a series will also unlock
+ * all other events of that series since they share and inherit the series' credentials.
  */
-export const getCredentials = (eventId: string): Credentials => {
-    const credentials = window.localStorage.getItem(CREDENTIALS_STORAGE_KEY + eventId)
-        ?? window.sessionStorage.getItem(CREDENTIALS_STORAGE_KEY + eventId);
+export const getCredentials = (id: string): Credentials => {
+    const credentials = window.localStorage.getItem(CREDENTIALS_STORAGE_KEY + id)
+        ?? window.sessionStorage.getItem(CREDENTIALS_STORAGE_KEY + id);
 
     return credentials && JSON.parse(credentials);
 };

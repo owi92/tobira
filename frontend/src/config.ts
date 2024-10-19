@@ -99,6 +99,7 @@ type UploadConfig = {
 
 type SyncConfig = {
     pollPeriod: number;
+    interpretETHPasswords: boolean;
 };
 
 type MetadataLabel = "builtin:license" | "builtin:source" | TranslatedString;

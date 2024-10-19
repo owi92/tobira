@@ -570,6 +570,10 @@ const SearchEvent: React.FC<SearchEventProps> = ({
                         title,
                         isLive,
                         created,
+                        series: (seriesTitle && seriesId) ? {
+                            title: seriesTitle,
+                            id: seriesId,
+                        } : null,
                         syncedData: {
                             duration,
                             startTime,

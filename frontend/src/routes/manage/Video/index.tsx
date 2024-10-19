@@ -77,6 +77,7 @@ const query = graphql`
                 }
                 items {
                     id title created description isLive tobiraDeletionTimestamp
+                    series { id title }
                     syncedData {
                         duration updated startTime endTime
                     }

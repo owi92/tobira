@@ -7,7 +7,7 @@ import {
 } from "react-relay";
 import { unreachable } from "@opencast/appkit";
 
-import { eventId, getCredentials, isSynced, keyOfId } from "../util";
+import { eventId, getCredentials, isSynced, keyOfId, useAuthenticatedDataQuery } from "../util";
 import { GlobalErrorBoundary } from "../util/err";
 import { loadQuery } from "../relay";
 import { makeRoute, MatchedRoute } from "../rauta";
@@ -113,7 +113,7 @@ const embedEventFragment = graphql`
             description
             canWrite
             hasPassword
-            series { title opencastId }
+            series { title id opencastId }
             syncedData {
                 updated
                 startTime
@@ -169,11 +169,14 @@ const Embed: React.FC<EmbedProps> = ({ query, queryRef }) => {
         </PlayerPlaceholder>;
     }
 
-    return event.authorizedData
-        ? <Player event={{
-            ...event,
-            authorizedData: event.authorizedData,
-        }} />
+    const authorizedData = useAuthenticatedDataQuery(
+        event.id,
+        event.series?.id,
+        { authorizedData: event.authorizedData },
+    );
+
+    return authorizedData
+        ? <Player event={{ ...event, authorizedData }} />
         : <PreviewPlaceholder embedded {...{ event }}/>;
 };
 
