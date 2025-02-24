@@ -1,5 +1,7 @@
 use core::fmt;
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
+
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{config::Config, db::DbConnection, prelude::*};
 
@@ -72,6 +74,26 @@ pub(crate) struct SyncConfig {
     /// load on Opencast, increase to speed up download a bit.
     #[config(default = 8)]
     concurrent_download_tasks: u8,
+
+    /// List of deletion modes that which, if any, realm pages are to be deleted
+    /// automatically when the corresponding Opencast item (series, event or playlist)
+    /// is deleted.
+    /// If configured, Tobira will delete the corresponding realm page(s) when they meet
+    /// the following conditions:
+    /// - Realm name is derived from the deleted item.
+    /// - Realm has no sub realms.
+    /// - Realm has no other blocks than the deleted item.
+    ///
+    /// The last option can be disabled by adding `:eager` to the deletion mode.
+    ///
+    /// Example:
+    /// ```
+    /// auto_delete_pages = ["series", "events:eager"]
+    /// ```
+    ///
+    /// This would delete series pages in non-eager mode and event pages in eager mode.
+    #[config(default = [])]
+    pub auto_delete_pages: Vec<DeletionMode>,
 }
 
 /// Version of the Tobira-module API in Opencast.
@@ -120,5 +142,42 @@ pub(crate) struct VersionResponse {
 impl VersionResponse {
     fn version(&self) -> ApiVersion {
         self.version.parse().expect("invalid version string")
+    }
+}
+
+
+#[derive(Debug, Serialize)]
+pub enum DeletionMode {
+    Series { eager: bool },
+    Events { eager: bool },
+    Playlists { eager: bool },
+}
+
+impl FromStr for DeletionMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "series" => Ok(Self::Series { eager: false }),
+            "series:eager" => Ok(Self::Series { eager: true }),
+
+            "events" => Ok(Self::Events { eager: false }),
+            "events:eager" => Ok(Self::Events { eager: true }),
+
+            "playlists" => Ok(Self::Playlists { eager: false }),
+            "playlists:eager" => Ok(Self::Playlists { eager: true }),
+
+            other => Err(format!("Invalid auto_delete_pages value: {}", other)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DeletionMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        DeletionMode::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
