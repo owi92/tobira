@@ -19,7 +19,7 @@ import { ManageRoute } from "..";
 import { COLORS } from "../../../color";
 import { PageTitle } from "../../../layout/header/ui";
 import { Breadcrumbs } from "../../../ui/Breadcrumbs";
-import { Link, useRouter } from "../../../router";
+import { Link } from "../../../router";
 import { VideosSortColumn } from "../Video/__generated__/VideoManageQuery.graphql";
 import { SeriesSortColumn } from "../Series/__generated__/SeriesManageQuery.graphql";
 import { useNotification } from "../../../ui/NotificationContext";
