@@ -15,7 +15,6 @@ import { VideoAccessAclMutation } from "./__generated__/VideoAccessAclMutation.g
 import { NoteWithTooltip } from "../../../ui";
 import { Link } from "../../../router";
 import { ManageSeriesAccessRoute } from "../Series/SeriesAccess";
-import { Inertable } from "../../../util";
 
 
 export const ManageVideoAccessRoute = makeManageVideoRoute(
@@ -63,9 +62,9 @@ type EventAclPageProps = {
 const EventAclEditor: React.FC<EventAclPageProps> = ({ event, data }) => {
     const [commit, inFlight] = useMutation<VideoAccessAclMutation>(updateVideoAcl);
     const aclLockedToSeries = CONFIG.lockAclToSeries && !!event.series;
-    const [editingBlocked, setEditingBlocked] = useState(
-        event.hasActiveWorkflows || aclLockedToSeries,
-    );
+    const [isInert, setIsInert] = useState(false);
+
+    const editingBlocked = isInert || event.hasActiveWorkflows || aclLockedToSeries;
 
     const onSubmit = async ({ selections, saveModalRef, setCommitError }: SubmitAclProps) => {
         commit({
@@ -80,13 +79,13 @@ const EventAclEditor: React.FC<EventAclPageProps> = ({ event, data }) => {
             },
             onCompleted: () => currentRef(saveModalRef).done(),
             onError: error => {
-                setEditingBlocked(true);
+                setIsInert(true);
                 setCommitError(displayCommitError(error));
             },
         });
     };
 
-    return <Inertable isInert={event.hasActiveWorkflows || aclLockedToSeries || editingBlocked}>
+    return <>
         {event.hasActiveWorkflows && <Card kind="info" css={{ marginBottom: 20 }}>
             <Trans i18nKey="acl.workflow-active" />
         </Card>}
@@ -104,6 +103,6 @@ const EventAclEditor: React.FC<EventAclPageProps> = ({ event, data }) => {
             data,
             editingBlocked,
         }} />
-    </Inertable>;
+    </>;
 };
 
