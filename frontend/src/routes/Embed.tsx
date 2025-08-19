@@ -20,7 +20,7 @@ import { EmbedDirectOpencastQuery } from "./__generated__/EmbedDirectOpencastQue
 import { EmbedEventData$key } from "./__generated__/EmbedEventData.graphql";
 import { PlayerContextProvider, usePlayerContext } from "../ui/player/PlayerContext";
 import { PreviewPlaceholder, useEventWithAuthData } from "./Video";
-import { PlayerShortcuts } from "../ui/player/PlayerShortcuts";
+import { usePlayerShortcuts } from "../ui/player/PlayerShortcuts";
 
 export const EmbedVideoRoute = makeRoute({
     url: ({ videoId }: { videoId: string }) => `/~embed/!v/${keyOfId(videoId)}`,
@@ -96,7 +96,7 @@ const matchedEmbedRoute = (
             </PlayerPlaceholder>
         }>
             <PlayerContextProvider>
-                <EmbedPageShortcuts />
+                {/* <EmbedPageShortcuts /> */}
                 <Embed query={query} queryRef={queryRef} />
             </PlayerContextProvider>
         </Suspense>
@@ -147,6 +147,10 @@ const Embed: React.FC<EmbedProps> = ({ query, queryRef }) => {
     );
     const [event, refetch] = useEventWithAuthData(protoEvent);
     const { t } = useTranslation();
+
+    const { paella } = usePlayerContext();
+    const player = paella.current?.player ?? null;
+    usePlayerShortcuts({ current: player });
 
     if (!event) {
         return <PlayerPlaceholder>
@@ -200,12 +204,6 @@ export const BlockEmbedRoute = makeRoute({
         };
     },
 });
-
-const EmbedPageShortcuts: React.FC = () => {
-    const { paella } = usePlayerContext();
-    const player = paella.current?.player ?? null;
-    return <PlayerShortcuts activePlayer={{ current: player }} />;
-};
 
 class ErrorBoundary extends GlobalErrorBoundary {
     public render(): ReactNode {

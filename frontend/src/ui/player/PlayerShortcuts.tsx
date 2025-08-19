@@ -1,5 +1,6 @@
 import { Paella } from "paella-core";
 import { HotkeyCallback, Options } from "react-hotkeys-hook";
+import { useCallback } from "react";
 
 import { ShortcutProps, SHORTCUTS, useShortcut } from "../Shortcuts";
 import { FRAME_DURATION, SKIP_INTERVAL, SPEEDS } from "./consts";
@@ -121,10 +122,10 @@ export const SHORTCUT_ACTIONS = {
 
 
 
-export const PlayerShortcuts: React.FC<{ activePlayer: React.MutableRefObject<Paella | null> }> = ({
-    activePlayer,
-}) => <>{(Object.entries(SHORTCUTS.player) as [PlayerAction, ShortcutProps][]).forEach(
-    ([key, shortcut]) => {
+export const usePlayerShortcuts = (activePlayer: React.MutableRefObject<Paella | null>) => {
+    const playerShortcuts = Object.entries(SHORTCUTS.player) as [PlayerAction, ShortcutProps][];
+
+    for (const [key, shortcut] of playerShortcuts) {
         const action = SHORTCUT_ACTIONS[key];
         const hotkeyCallback: HotkeyCallback = () => {
             if (activePlayer.current) {
@@ -135,6 +136,7 @@ export const PlayerShortcuts: React.FC<{ activePlayer: React.MutableRefObject<Pa
 
         // Since SHORTCUTS.player is static, the loop always iterates over
         // the same unchanging array and disabling the hook rule is safe.
+
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useShortcut(
             shortcut.keys,
@@ -142,8 +144,8 @@ export const PlayerShortcuts: React.FC<{ activePlayer: React.MutableRefObject<Pa
             "options" in action ? action.options : undefined,
             [activePlayer.current],
         );
-    },
-)}</>;
+    }
+};
 
 export const jumpFrame = async (
     player: Paella,

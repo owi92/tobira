@@ -11,6 +11,8 @@ import { getEventTimeInfo } from "../../util/video";
 import { Spinner } from "@opencast/appkit";
 import { PrettyDate } from "../time";
 import { COLORS } from "../../color";
+import { usePlayerContext } from "./PlayerContext";
+import { usePlayerShortcuts } from "./PlayerShortcuts";
 
 
 export type PlayerProps = {
@@ -130,6 +132,10 @@ export const InlinePlayer: React.FC<PlayerProps> = ({ className, event, ...playe
     const aspectRatio = getPlayerAspectRatio(event.authorizedData?.tracks);
     const isDark = useColorScheme().scheme === "dark";
     const ref = useRef<HTMLDivElement>(null);
+
+    const { paella } = usePlayerContext();
+    const player = paella.current?.player ?? null;
+    usePlayerShortcuts({ current: player });
 
     const minControlWidth = 470;
     const [controlsFit, setControlsFit] = useState(true);
