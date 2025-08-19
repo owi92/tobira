@@ -17,6 +17,7 @@ import { usePlayerGroupContext } from "./PlayerGroupContext";
 import CONFIG from "../../config";
 import i18n from "../../i18n";
 import { SKIP_INTERVAL } from "./consts";
+import { SHORTCUTS, useShortcut } from "../Shortcuts";
 
 
 type PaellaPlayerProps = {
@@ -31,9 +32,17 @@ export type PaellaState = {
 const PaellaPlayer: React.FC<PaellaPlayerProps> = ({ event }) => {
     const { t, i18n } = useTranslation();
     const ref = useRef<HTMLDivElement>(null);
-    const { paella, setPlayerIsLoaded } = usePlayerContext();
-    const { players, register, unregister, setActivePlayer } = usePlayerGroupContext();
+    const { paella, playerIsLoaded, setPlayerIsLoaded } = usePlayerContext();
+    const {
+        players, register, unregister, activePlayer, setActivePlayer,
+    } = usePlayerGroupContext();
     const { enableScope, disableScope } = useHotkeysContext();
+
+    // const triggerPlayButton = async () => {
+    //     await paella.current?.player.load();
+    // };
+
+    // useShortcut(SHORTCUTS.player.play.keys, () => triggerPlayButton(), { preventDefault: true });
 
     useEffect(() => {
         // If the ref is not set yet (which should not usually happen), we do

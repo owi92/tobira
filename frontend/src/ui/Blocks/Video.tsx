@@ -10,6 +10,7 @@ import { Link } from "../../router";
 import { LuCircleArrowRight } from "react-icons/lu";
 import { PlayerContextProvider } from "../player/PlayerContext";
 import { PreviewPlaceholder, useEventWithAuthData } from "../../routes/Video";
+import { useHotkeysContext } from "react-hotkeys-hook";
 
 
 export type BlockEvent = VideoBlockData$data["event"];
@@ -23,6 +24,8 @@ type Props = {
 
 export const VideoBlock: React.FC<Props> = ({ fragRef, basePath, edit }) => {
     const { t } = useTranslation();
+    const { enableScope, disableScope } = useHotkeysContext();
+
     const { event: protoEvent, showTitle, showLink } = useFragment(graphql`
         fragment VideoBlockData on VideoBlock {
             event {

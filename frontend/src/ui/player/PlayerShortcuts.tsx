@@ -13,6 +13,14 @@ type PlayerAction = keyof typeof SHORTCUTS["player"];
 export const SHORTCUT_ACTIONS = {
     play: {
         callback: player => async () => {
+            // Somehow this fucks up the `isPaused` thing.
+            // Don't use on multi-video pages or your machine will explode.
+            if (player.state === 0) {
+                await player.load();
+                await player.videoContainer.play();
+                return;
+            }
+
             const isPaused = await player.videoContainer.paused();
             if (isPaused) {
                 await player.videoContainer.play();
@@ -21,7 +29,7 @@ export const SHORTCUT_ACTIONS = {
             }
         },
         options: {
-            scopes: ["player"],
+            // scopes: ["player"],
             // Don't trigger when a button is focused. This way, users can still
             // use the space bar to control other elements by default.
             ignoreEventWhen: e => (e.key !== "k" && (

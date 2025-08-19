@@ -34,6 +34,9 @@ declare module "paella-core" {
         public exitFullscreen(): Promise<void>;
 
         public captionsCanvas: CaptionsCanvas;
+
+        public load(): Promise<void>;
+        public state: number;
     }
 
     export interface InitParams {
