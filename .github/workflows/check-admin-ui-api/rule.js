@@ -12,6 +12,8 @@ const adminUIPaths = [
     "Realm.ancestors",
 
     "Mutation.mountSeries",
+    "Mutation.addSeriesMountPoint",
+    "Mutation.removeSeriesMountPoint",
     "NewSeries",
     "RealmSpecifier",
 ];
