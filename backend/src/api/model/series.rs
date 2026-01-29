@@ -331,11 +331,17 @@ impl Series {
 
     pub(crate) async fn mount(
         series: NewSeries,
-        parent_realm_path: String,
+        parent_realm_path: Option<String>,
         new_realms: Vec<RealmSpecifier>,
         context: &Context,
-    ) -> ApiResult<Realm> {
+    ) -> ApiResult<Option<Realm>> {
         context.auth.state.required_trusted_external()?;
+
+        // If no parent realm path is provided, just create the series without mounting
+        let Some(parent_realm_path) = parent_realm_path else {
+            Series::create(series, None, context, SeriesState::Waiting).await?;
+            return Ok(None);
+        };
 
         // Check parameters
         if new_realms.iter().rev().skip(1).any(|r| r.name.is_none()) {
@@ -373,7 +379,7 @@ impl Series {
         };
 
         // Create mount point
-        Self::add_mount_point(series.opencast_id, target_realm.full_path, context).await
+        Self::add_mount_point(series.opencast_id, target_realm.full_path, context).await.map(Some)
     }
 
     pub(crate) async fn load_writable_for_user(

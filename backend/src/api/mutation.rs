@@ -383,13 +383,15 @@ impl Mutation {
     /// Atomically mount a series into an (empty) realm.
     /// Creates all the necessary realms on the path to the target
     /// and adds a block with the given series at the leaf.
+    /// If no `parentRealmPath` is provided, only the series is created
+    /// and `null` is returned.
     async fn mount_series(
         series: NewSeries,
-        parent_realm_path: String,
+        parent_realm_path: Option<String>,
         #[graphql(default = vec![])]
         new_realms: Vec<RealmSpecifier>,
         context: &Context,
-    ) -> ApiResult<Realm> {
+    ) -> ApiResult<Option<Realm>> {
         Series::mount(series, parent_realm_path, new_realms, context).await
     }
 }
