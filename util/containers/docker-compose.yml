@@ -21,12 +21,12 @@ services:
 
   # A PostgreSQL database for Tobira.
   tobira-dev-database:
-    image: docker.io/library/postgres:12
+    image: docker.io/library/postgres:18
     restart: unless-stopped
     ports:
       - 127.0.0.1:5432:5432
     volumes:
-      - tobira-dev-postgres:/var/lib/postgresql/data
+      - tobira-dev-postgres:/var/lib/postgresql
     environment:
       - POSTGRES_PASSWORD=tobira
       - POSTGRES_USER=tobira

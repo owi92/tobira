@@ -39,21 +39,21 @@ alter table events
 
 -- We need some way to get to the name of a constraint given only the columns involved in it.
 create function constraints_by_columns(
-    table_ information_schema.sql_identifier,
+    table_ text,
     columns text[]
-) returns setof information_schema.sql_identifier as $$
-    select constraint_name
-        -- Note, we only really **need** `constraint_column_usage`, but that also contains
-        -- information about `unique` constraints, so it makes our selections below
-        -- less ... `unique`, funnily enough.
-        -- `check_constraints` in turn also contains `not null` constraints, but these
-        -- aren't in `constraint_column_usage`, so everything works out fine.
-        from information_schema.check_constraints
-            natural join information_schema.constraint_column_usage
-        where table_name = table_
-            and table_catalog = current_catalog
-        group by constraint_name
-            having array_agg(column_name::text) = columns;
+) returns setof text as $$
+    -- We query pg_constraint directly, filtering for contype = 'c' (CHECK).
+    -- Using information_schema views doesn't work reliably because PG 18+
+    -- exposes NOT NULL constraints (contype = 'n') as CHECK constraints there,
+    -- which would give us false matches.
+    select c.conname
+        from pg_constraint c
+        join pg_class t on c.conrelid = t.oid
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+        where t.relname = table_
+            and c.contype = 'c'
+        group by c.conname
+            having array_agg(a.attname::text) = columns;
 $$ language sql;
 
 -- Next we want to be able to drop a constraint based on this
@@ -65,7 +65,7 @@ $$ language sql;
 -- one of the affected constraints and its copy&paste duplicate,
 -- so it doesn't matter which one we drop.
 create function drop_constraint_by_columns(
-    table_ information_schema.sql_identifier,
+    table_ text,
     columns text[]
 ) returns void as $$
     declare constraint_ text;
@@ -79,9 +79,9 @@ $$ language plpgsql;
 -- We also want to rename constraints based on it.
 -- Note that this function will fail when the columns don't uniquely specify a constraint.
 create function rename_constraint_by_columns(
-    table_ information_schema.sql_identifier,
+    table_ text,
     columns text[],
-    name information_schema.sql_identifier
+    name text
 ) returns void as $$
     declare constraint_ text;
     begin
