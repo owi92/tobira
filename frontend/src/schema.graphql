@@ -181,6 +181,17 @@ input RealmSpecifier {
 
 input SearchFilter {
   title: String
+  description: String
+  createdStart: DateTime
+  createdEnd: DateTime
+  """
+    Filter by visibility: `"public"` (ROLE_ANONYMOUS in read_roles)
+    or `"private"` (ROLE_ANONYMOUS not in read_roles).
+  """ visibility: String
+  """
+    Filter by write access: `"shared"` means others have write access
+    (write_roles has more than just the user's own roles).
+  """ writable: Boolean
 }
 
 input SeriesSortOrder {

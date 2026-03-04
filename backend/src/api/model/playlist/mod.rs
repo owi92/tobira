@@ -160,6 +160,7 @@ impl Playlist {
             table: "playlists",
             alias: None,
             join_clause: "",
+            date_column: "playlists.updated",
         };
         let (selection, mapping) = select!(
             playlist: AuthorizedPlaylist,

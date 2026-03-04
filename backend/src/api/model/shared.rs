@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use chrono::{DateTime, Utc};
 use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use tokio_postgres::Row;
 
@@ -166,6 +167,8 @@ pub(crate) struct ConnectionQueryParts {
     pub(crate) table: &'static str,
     pub(crate) alias: Option<&'static str>,
     pub(crate) join_clause: &'static str,
+    /// Column name used for date range filtering (e.g. "events.created").
+    pub(crate) date_column: &'static str,
 }
 
 
@@ -207,23 +210,63 @@ where
         user_roles = context.auth.roles_vec();
     };
 
-    // Retrieve total number of items, considering possible filters.
-    // Todo: consider stop words
-    let title_filter: Option<String> = filter.and_then(|f| f.title.map(|s| {
-        format!("%{}%", (|input: &str| input
+    // Extract filter values
+    let escape_like = |input: &str| -> String {
+        format!("%{}%", input
             .replace('\\', r"\\")
             .replace('%', r"\%")
             .replace('_', r"\_")
-        )(&s))
-    }));
+        )
+    };
+    let (title_filter, desc_filter, created_start, created_end, visibility, writable) = match filter {
+        Some(f) => (
+            f.title.map(|s| escape_like(&s)),
+            f.description.map(|s| escape_like(&s)),
+            f.created_start,
+            f.created_end,
+            f.visibility,
+            f.writable,
+        ),
+        None => (None, None, None, None, None, None),
+    };
+
+    // Build visibility SQL clause
+    let visibility_clause = match visibility.as_deref() {
+        Some("public") => format!(
+            "and 'ROLE_ANONYMOUS' = any({table}.read_roles)"
+        ),
+        Some("private") => format!(
+            "and not ('ROLE_ANONYMOUS' = any({table}.read_roles))"
+        ),
+        _ => String::new(),
+    };
+
+    // Build writable filter clause
+    let writable_clause = match writable {
+        Some(true) => format!(
+            "and array_length({table}.write_roles, 1) > 1"
+        ),
+        Some(false) => format!(
+            "and (array_length({table}.write_roles, 1) = 1 \
+             or array_length({table}.write_roles, 1) is null)"
+        ),
+        None => String::new(),
+    };
+
+    let date_column = parts.date_column;
 
     let total_count = context.db.query_one(
         &format!(
             "select count(*) \
                 from {table_alias} \
-                {acl_filter} and ($2::text is null or {table}.title ilike $2::text)",
+                {acl_filter} \
+                and ($2::text is null or {table}.title ilike $2::text) \
+                and ($3::text is null or {table}.description ilike $3::text) \
+                and ($4::timestamptz is null or {date_column} >= $4::timestamptz) \
+                and ($5::timestamptz is null or {date_column} <= $5::timestamptz) \
+                {visibility_clause} {writable_clause}",
             ),
-        &[&user_roles, &title_filter],
+        &[&user_roles, &title_filter, &desc_filter, &created_start, &created_end],
     ).await?.get::<_, i64>(0);
     let total_count = total_count.try_into().expect("more than 2^31 items?!");
 
@@ -231,9 +274,14 @@ where
         "select {selection}, count(*) over() as total_count \
             from {table_alias} \
             {join_clause} \
-            {acl_filter} and ($2::text is null or {table}.title ilike $2::text) \
+            {acl_filter} \
+            and ($2::text is null or {table}.title ilike $2::text) \
+            and ($3::text is null or {table}.description ilike $3::text) \
+            and ($4::timestamptz is null or {date_column} >= $4::timestamptz) \
+            and ($5::timestamptz is null or {date_column} <= $5::timestamptz) \
+            {visibility_clause} {writable_clause} \
             order by {sort_column} {sort_order}, {table}.id {sort_order} \
-            limit $3 offset $4 \
+            limit $6 offset $7 \
         ",
         join_clause = parts.join_clause,
         sort_order = order.direction.to_sql(),
@@ -243,7 +291,7 @@ where
     // Execute query
     let items = context.db.query_mapped(
         &query,
-        dbargs![&user_roles, &title_filter, &(limit as i64), &(offset as i64)],
+        dbargs![&user_roles, &title_filter, &desc_filter, &created_start, &created_end, &(limit as i64), &(offset as i64)],
         |row| from_row(&row),
     ).await?;
 
@@ -319,4 +367,13 @@ pub(crate) struct BasicMetadata {
 #[derive(GraphQLInputObject)]
 pub(crate) struct SearchFilter {
     pub(crate) title: Option<String>,
+    pub(crate) description: Option<String>,
+    pub(crate) created_start: Option<DateTime<Utc>>,
+    pub(crate) created_end: Option<DateTime<Utc>>,
+    /// Filter by visibility: `"public"` (ROLE_ANONYMOUS in read_roles)
+    /// or `"private"` (ROLE_ANONYMOUS not in read_roles).
+    pub(crate) visibility: Option<String>,
+    /// Filter by write access: `"shared"` means others have write access
+    /// (write_roles has more than just the user's own roles).
+    pub(crate) writable: Option<bool>,
 }

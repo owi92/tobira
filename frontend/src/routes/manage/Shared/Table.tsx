@@ -12,9 +12,8 @@ import {
     screenWidthAtMost,
     useColorScheme,
     useFloatingItemProps,
-    WithTooltip,
 } from "@opencast/appkit";
-import { useRef, ReactNode, ComponentType, useId, PropsWithChildren } from "react";
+import { useRef, ReactNode, ComponentType, useId } from "react";
 import { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
@@ -35,7 +34,7 @@ import { css } from "@emotion/react";
 import FirstPage from "../../../icons/first-page.svg";
 import LastPage from "../../../icons/last-page.svg";
 import { prettyDate } from "../../../ui/time";
-import { ellipsisOverflowCss, IconWithTooltip } from "../../../ui";
+import { ellipsisOverflowCss, focusStyle, IconWithTooltip } from "../../../ui";
 import CONFIG from "../../../config";
 import { Metadata, SmallDescription } from "../../../ui/metadata";
 import { ManageRoute } from "..";
@@ -45,7 +44,9 @@ import { Link, useRouter } from "../../../router";
 import { VideosSortColumn } from "../Video/__generated__/VideoManageQuery.graphql";
 import { SeriesSortColumn } from "../Series/__generated__/SeriesManageQuery.graphql";
 import { useNotification } from "../../../ui/NotificationContext";
-import { AccessIcon, AccessProps, floatingMenuProps, OcEntity, visuallyHiddenStyle } from "../../../util";
+import {
+    floatingMenuProps, OcEntity, visuallyHiddenStyle,
+} from "../../../util";
 import { isSynced } from "../../../util";
 import { ThumbnailItemState } from "../../../ui/Video";
 import { SearchInput } from "../../../layout/header/Search";
@@ -95,8 +96,6 @@ type ManageItemProps<T> = SharedTableProps<T> & {
 
 const LIMIT = 15;
 
-const HEADER_BREAKPOINT = 389;
-
 
 export const ManageItems = <T extends Item>({
     connection,
@@ -109,11 +108,6 @@ export const ManageItems = <T extends Item>({
     const { t } = useTranslation();
     const { Notification } = useNotification();
     const isDark = useColorScheme().scheme === "dark";
-
-    const sortOptions: SortingProps<SortColumn>[] = [
-        { key: "TITLE", label: "general.title" },
-        ...additionalSortOptions,
-    ];
 
     let inner;
     if (connection.items.length === 0) {
@@ -189,59 +183,25 @@ export const ManageItems = <T extends Item>({
                 </div>
 
                 <div css={{ display: "flex", gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
-                    {/* Text filter attribute (i.e. title, description, series etc) */}
-                    <MockupMenu
-                        Icon={LuTypeOutline}
-                        tooltip="Text"
-                        menuItems={["Title", "Description", "Series"]}
-                        criterion="Search by text"
-                        label={"Text"}
-                    />
+                    {/* Text field filter (title, description) */}
+                    <TextFieldFilter {...{ vars }} />
 
-                    {/* Datepicker */}
-                    <MockupMenu Icon={LuCalendarRange} tooltip="Date" label="Date" />
+                    {/* Date range filter */}
+                    <ManageDatePicker {...{ vars }} />
 
-                    {/* Visibility */}
-                    <MockupMenu Icon={LuBanana} tooltip="Visibility" label="Visibility" />
+                    {/* Visibility filter */}
+                    <VisibilityFilter {...{ vars }} />
 
-                    {/* Access (read/write) */}
-                    <MockupMenu Icon={LuShieldCheck} tooltip="Access" label="Access" />
+                    {/* Write access filter */}
+                    <WritableFilter {...{ vars }} />
 
                     {/* Sorting & order */}
                     <SortAndOrder {...{ additionalSortOptions, vars }} />
                 </div>
             </div>
 
-            {/* Applied filters (dummy -> todo) */}
-            <div css={{
-                display: "flex",
-                flexDirection: "row",
-                gap: 6,
-                flexWrap: "wrap",
-                margin: "8px 10px",
-            }}>
-                {["public", "read only", "20.07.1969 - 26.06.92", "title:Opencast"].map(filter => (
-                    <div key={filter} css={{
-                        backgroundColor: COLORS.neutral15,
-                        borderRadius: 8,
-                        padding: "2px 8px",
-                        display: "flex",
-                        alignItems: "center",
-                        fontSize: 14,
-                        gap: 8,
-                    }}>
-                        {filter}
-                        <ProtoButton css={{
-                            padding: 0,
-                            border: 0,
-                            display: "flex",
-                            borderRadius: 4,
-                        }}>
-                            <LuX />
-                        </ProtoButton>
-                    </div>
-                ))}
-            </div>
+            {/* Applied filters */}
+            <AppliedFilters {...{ vars }} />
 
             {/* Actual table */}
             {inner}
@@ -296,112 +256,413 @@ const SortAndOrder: React.FC<SortAndOrderProps> = ({ additionalSortOptions, vars
     </div>;
 };
 
-type MockupMenuProps = {
-    Icon: IconType;
-    tooltip: string;
-    criterion?: string;
-    // menu?: ReactNode;
-    menuItems?: string[];
-    label: string;
-}
+/** Date range filter for the manage page, adapted from the search page DatePicker. */
+const ManageDatePicker: React.FC<{ vars: ItemVars }> = ({ vars }) => {
+    const { t } = useTranslation();
+    const ref = useRef(null);
+    const router = useRouter();
 
-const MockupMenu: React.FC<MockupMenuProps> = ({ Icon, tooltip, menuItems, criterion, label }) => {
+    const startDate = vars.filters.start ?? "";
+    const endDate = vars.filters.end ?? "";
+    const isActive = startDate || endDate;
+
+    const handleChange = (date: string, type: "start" | "end") => {
+        const newFilters = { ...vars.filters };
+        if (date) {
+            newFilters[type] = date;
+        } else {
+            delete newFilters[type];
+        }
+        router.goto(varsToLink({ ...vars, page: 1, filters: newFilters }));
+    };
+
+    const clearDates = () => {
+        const { start, end, ...restFilters } = vars.filters;
+        router.goto(varsToLink({ ...vars, page: 1, filters: restFilters }));
+    };
+
+    const inputStyle = {
+        borderRadius: 4,
+        border: `1px solid ${COLORS.neutral40}`,
+        ...focusStyle({ width: 2, inset: true }),
+    };
+
+    return <FloatingContainer
+        {...{ ref }}
+        placement="bottom"
+        arrowSize={12}
+        ariaRole="dialog"
+        trigger="click"
+        viewPortMargin={12}
+    >
+        <FloatingTrigger>
+            <Button
+                aria-label={t("manage.table.filter.select-date")}
+                css={{
+                    height: 30,
+                    border: 0,
+                    backgroundColor: "transparent",
+                    padding: "4px 8px",
+                    gap: 8,
+                    ...isActive && {
+                        backgroundColor: COLORS.neutral25,
+                        "&&": { border: `1px solid ${COLORS.neutral40}` },
+                    },
+                }}
+            >
+                <span css={{ fontSize: 14 }}>
+                    {t("manage.table.filter.date")}
+                </span>
+                <LuCalendarRange />
+            </Button>
+        </FloatingTrigger>
+        <Floating css={{ padding: "0 8px 8px 8px" }}>
+            <p css={{ fontSize: 14, padding: "4px 2px" }}>
+                {t("manage.table.filter.select-date")}
+            </p>
+            <div css={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                {isActive && <ProtoButton
+                    aria-label={t("manage.table.filter.clear-date")}
+                    css={{ display: "flex", alignItems: "center" }}
+                    onClick={clearDates}
+                ><LuX /></ProtoButton>}
+                <input
+                    value={startDate}
+                    css={inputStyle}
+                    type="date"
+                    onChange={e => handleChange(e.target.value, "start")}
+                />
+                <span>{"-"}</span>
+                <input
+                    value={endDate}
+                    css={inputStyle}
+                    type="date"
+                    min={startDate}
+                    onChange={e => handleChange(e.target.value, "end")}
+                />
+            </div>
+        </Floating>
+    </FloatingContainer>;
+};
+
+
+// --- Shared trigger styles for all filter dropdowns ---
+
+const filterTriggerStyles = {
+    height: 30,
+    marginLeft: "auto",
+    padding: "4px 8px",
+    gap: 12,
+    border: 0,
+    backgroundColor: "transparent",
+    fontSize: 14,
+} as const;
+
+/**
+ * Lets the user choose which text field (title / description)
+ * the search input targets. Switching moves the current search
+ * value to the newly selected field.
+ */
+const TextFieldFilter: React.FC<{ vars: ItemVars }> = ({ vars }) => {
     const { t } = useTranslation();
     const listRef = useRef<FloatingHandle>(null);
 
-    return <div css={{
-        display: "flex",
-        alignItems: "center",
-    }}>
-        <FloatingBaseMenu
-            ref={listRef}
-            triggerStyles={{
-                height: 30,
-                marginLeft: "auto",
-                padding: "4px 8px",
-                gap: 12,
-                border: 0,
-                backgroundColor: "transparent",
-            }}
-            tooltip={criterion}
-            list={<MockupList
-                close={() => listRef.current?.close()}
-                {...{ criterion, menuItems }}
-            />}
-            triggerContent={<span css={{ fontSize: 14, marginRight: -2 }}>{label}</span>}
-            icon={<Icon />}
-        />
-    </div>;
+    const currentField = vars.filters.textField ?? "title";
+    const options = [
+        { key: "title", label: String(t("general.title")) },
+        { key: "description", label: String(t("general.description")) },
+    ];
+
+    const activeLabel = options.find(o => o.key === currentField)?.label
+        ?? t("general.title");
+
+    return <FloatingBaseMenu
+        ref={listRef}
+        triggerContent={<>{activeLabel}</>}
+        triggerStyles={filterTriggerStyles}
+        tooltip={String(t("manage.table.filter.text-field"))}
+        label={String(t("manage.table.filter.text-field"))}
+        icon={<LuTypeOutline />}
+        list={<TextFieldMenu
+            {...{ vars, options }}
+            currentField={currentField}
+            close={() => listRef.current?.close()}
+        />}
+    />;
 };
 
-type MockupListProps = {
-    close: () => void;
-    criterion?: string;
-    menuItems?: string[];
-}
+type FilterMenuOption = { key: string; label: string };
 
-const MockupList: React.FC<MockupListProps> = ({ close, criterion, menuItems }) => {
+type TextFieldMenuProps = {
+    vars: ItemVars;
+    options: FilterMenuOption[];
+    currentField: string;
+    close: () => void;
+};
+
+const TextFieldMenu: React.FC<TextFieldMenuProps> = ({
+    vars, options, currentField, close,
+}) => {
     const isDark = useColorScheme().scheme === "dark";
-    const itemId = useId();
+    const router = useRouter();
     const itemProps = useFloatingItemProps();
 
-    const listStyle = {
-        minWidth: 125,
-        div: {
-            cursor: "default",
-            fontSize: 12,
-            padding: "8px 14px 4px 14px",
-            color: COLORS.neutral60,
-        },
-        ul: {
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-        },
-    };
-
-    const handleBlur = (event: React.FocusEvent<HTMLUListElement, Element>) => {
-        if (!event.currentTarget.contains(event.relatedTarget as HTMLUListElement)) {
-            close();
+    const handleSelect = (key: string) => {
+        const searchValue = vars.filters[currentField]
+            ?? vars.filters.title ?? "";
+        const newFilters = { ...vars.filters };
+        delete newFilters.title;
+        delete newFilters.description;
+        newFilters.textField = key;
+        if (searchValue) {
+            newFilters[key] = searchValue;
         }
+        router.goto(varsToLink({
+            ...vars, page: 1, filters: newFilters,
+        }));
+        close();
     };
-
-    const extraStyles = css({
-        "&&": {
-            borderBottom: 0,
-        },
-        "&& button": {
-            padding: "4px 14px 7px",
-        },
-    });
-
-    const list = <ul role="menu" onBlur={handleBlur}>
-        <div css={{ paddingTop: 6 }}>{criterion}</div>
-        {menuItems?.map((item, index) =>
-            <MenuItem
-                key={`${itemId}-${item}`}
-                label={item}
-                // aria-label={
-                //     t("manage.table.sorting.description", {
-                //         title: option,
-                //         direction: t(`manage.table.sorting.${directionTransKey}`),
-                //     })
-                // }
-                disabled={item === "Title"}
-                {...itemProps(index)}
-                onClick={() => {}}
-                css={extraStyles}
-            />)
-        }
-    </ul>;
 
     return <Floating
         {...floatingMenuProps(isDark)}
         hideArrowTip
-        css={listStyle}
+        css={{ minWidth: 125 }}
     >
-        {list}
+        <ul role="menu" css={{
+            listStyle: "none", margin: 0, padding: 0,
+        }}>
+            {options.map((opt, i) =>
+                <MenuItem
+                    key={opt.key}
+                    label={opt.label}
+                    disabled={opt.key === currentField}
+                    {...itemProps(i)}
+                    onClick={() => handleSelect(opt.key)}
+                    css={css({
+                        "&&": { borderBottom: 0 },
+                        "&& button": {
+                            padding: "4px 14px 7px",
+                        },
+                    })}
+                />)
+            }
+        </ul>
     </Floating>;
+};
+
+/** Filter by visibility: public / private. */
+const VisibilityFilter: React.FC<{ vars: ItemVars }> = ({ vars }) => {
+    const { t } = useTranslation();
+    const listRef = useRef<FloatingHandle>(null);
+
+    const current = vars.filters.visibility ?? null;
+    const options = [
+        {
+            key: "public",
+            label: String(t("manage.table.filter.visibility-public")),
+        },
+        {
+            key: "private",
+            label: String(t("manage.table.filter.visibility-private")),
+        },
+    ];
+
+    const triggerLabel = current
+        ? options.find(o => o.key === current)?.label
+        : t("manage.table.filter.visibility");
+
+    return <FloatingBaseMenu
+        ref={listRef}
+        triggerContent={<>{triggerLabel}</>}
+        triggerStyles={filterTriggerStyles}
+        tooltip={String(t("manage.table.filter.visibility"))}
+        label={String(t("manage.table.filter.visibility"))}
+        icon={<LuBanana />}
+        list={<SimpleFilterMenu
+            {...{ vars, options }}
+            filterKey="visibility"
+            current={current}
+            close={() => listRef.current?.close()}
+        />}
+    />;
+};
+
+/** Filter by write access: shared / not-shared. */
+const WritableFilter: React.FC<{ vars: ItemVars }> = ({ vars }) => {
+    const { t } = useTranslation();
+    const listRef = useRef<FloatingHandle>(null);
+
+    const current = vars.filters.writable ?? null;
+    const options = [
+        {
+            key: "true",
+            label: String(t("manage.table.filter.writable-shared")),
+        },
+        {
+            key: "false",
+            label: String(t("manage.table.filter.writable-not-shared")),
+        },
+    ];
+
+    const triggerLabel = current
+        ? options.find(o => o.key === current)?.label
+        : t("manage.table.filter.writable");
+
+    return <FloatingBaseMenu
+        ref={listRef}
+        triggerContent={<>{triggerLabel}</>}
+        triggerStyles={filterTriggerStyles}
+        tooltip={String(t("manage.table.filter.writable"))}
+        label={String(t("manage.table.filter.writable"))}
+        icon={<LuShieldCheck />}
+        list={<SimpleFilterMenu
+            {...{ vars, options }}
+            filterKey="writable"
+            current={current}
+            close={() => listRef.current?.close()}
+        />}
+    />;
+};
+
+/**
+ * Reusable dropdown list for simple toggle filters (visibility, writable).
+ * Must be rendered inside a FloatingContainer so useFloatingItemProps works.
+ */
+type SimpleFilterMenuProps = {
+    vars: ItemVars;
+    options: FilterMenuOption[];
+    filterKey: string;
+    current: string | null;
+    close: () => void;
+};
+
+const SimpleFilterMenu: React.FC<SimpleFilterMenuProps> = ({
+    vars, options, filterKey, current, close,
+}) => {
+    const isDark = useColorScheme().scheme === "dark";
+    const router = useRouter();
+    const itemProps = useFloatingItemProps();
+
+    const handleSelect = (key: string) => {
+        const newFilters = { ...vars.filters };
+        // Toggle off if already selected
+        if (newFilters[filterKey] === key) {
+            delete newFilters[filterKey];
+        } else {
+            newFilters[filterKey] = key;
+        }
+        router.goto(varsToLink({
+            ...vars, page: 1, filters: newFilters,
+        }));
+        close();
+    };
+
+    return <Floating
+        {...floatingMenuProps(isDark)}
+        hideArrowTip
+        css={{ minWidth: 125 }}
+    >
+        <ul role="menu" css={{
+            listStyle: "none", margin: 0, padding: 0,
+        }}>
+            {options.map((opt, i) =>
+                <MenuItem
+                    key={opt.key}
+                    label={opt.label}
+                    disabled={opt.key === current}
+                    {...itemProps(i)}
+                    onClick={() => handleSelect(opt.key)}
+                    css={css({
+                        "&&": { borderBottom: 0 },
+                        "&& button": {
+                            padding: "4px 14px 7px",
+                        },
+                    })}
+                />)
+            }
+        </ul>
+    </Floating>;
+};
+
+/** Displays active filter chips with remove functionality. */
+const AppliedFilters: React.FC<{ vars: ItemVars }> = ({ vars }) => {
+    const { t } = useTranslation();
+    const router = useRouter();
+
+    // TextField is a mode selector, not a value filter – exclude it
+    const activeFilters = Object.entries(vars.filters)
+        .filter(([k, v]) => v && k !== "textField");
+
+    if (activeFilters.length === 0) {
+        return null;
+    }
+
+    const removeFilter = (key: string) => {
+        const newFilters = { ...vars.filters };
+        delete newFilters[key];
+        router.goto(varsToLink({ ...vars, page: 1, filters: newFilters }));
+    };
+
+    const formatLabel = (key: string, value: string): string => {
+        switch (key) {
+            case "title":
+                return `${String(t("general.title"))}: ${value}`;
+            case "description":
+                return `${String(t("general.description"))}: ${value}`;
+            case "start":
+                return `${String(t("manage.table.filter.from"))}: ${value}`;
+            case "end":
+                return `${String(t("manage.table.filter.to"))}: ${value}`;
+            case "visibility":
+                return `${String(t("manage.table.filter.visibility"))}: ${
+                    value === "public"
+                        ? String(t("manage.table.filter.visibility-public"))
+                        : String(t("manage.table.filter.visibility-private"))
+                }`;
+            case "writable":
+                return `${String(t("manage.table.filter.writable"))}: ${
+                    value === "true"
+                        ? String(t("manage.table.filter.writable-shared"))
+                        : String(t("manage.table.filter.writable-not-shared"))
+                }`;
+            default: return `${key}: ${value}`;
+        }
+    };
+
+    return <div css={{
+        display: "flex",
+        flexDirection: "row",
+        gap: 6,
+        flexWrap: "wrap",
+        margin: "8px 10px",
+    }}>
+        {activeFilters.map(([key, value]) => (
+            <div key={key} css={{
+                backgroundColor: COLORS.neutral15,
+                borderRadius: 8,
+                padding: "2px 8px",
+                display: "flex",
+                alignItems: "center",
+                fontSize: 14,
+                gap: 8,
+            }}>
+                {formatLabel(key, value)}
+                <ProtoButton
+                    aria-label={t("manage.table.filter.remove")}
+                    onClick={() => removeFilter(key)}
+                    css={{
+                        padding: 0,
+                        border: 0,
+                        display: "flex",
+                        borderRadius: 4,
+                        ":hover": { backgroundColor: COLORS.neutral25 },
+                    }}
+                >
+                    <LuX />
+                </ProtoButton>
+            </div>
+        ))}
+    </div>;
 };
 
 
@@ -550,34 +811,48 @@ const SearchField: React.FC<{ vars: ItemVars }> = ({ vars }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
 
+    const textField = vars.filters.textField ?? "title";
+
     const search = (q: string) => {
+        const newFilters = { ...vars.filters };
+        // Clear both text fields, then set the active one
+        delete newFilters.title;
+        delete newFilters.description;
+        if (q) {
+            newFilters[textField] = q;
+        }
         router.goto(varsToLink({
             order: {
                 column: vars.order.column,
                 direction: vars.order.direction,
             },
             page: 1,
-            filters: { title: q },
+            filters: newFilters,
         }));
-
     };
 
     const clear = () => {
-        const { title, ...restFilters } = vars.filters;
-        if (Object.keys(vars.filters).length) {
+        const newFilters = { ...vars.filters };
+        delete newFilters.title;
+        delete newFilters.description;
+        if (Object.keys(newFilters).length) {
             router.goto(varsToLink({
                 order: {
                     column: vars.order.column,
                     direction: vars.order.direction,
                 },
                 page: 1,
-                filters: restFilters,
+                filters: newFilters,
             }));
         } else {
             const input = currentRef(inputRef);
             input.value = "";
         }
     };
+
+    const placeholderKey = textField === "description"
+        ? "manage.table.filter.by-description" as const
+        : "manage.table.filter.by-title" as const;
 
     return <div css={{
         // backgroundColor: COLORS.neutral10,
@@ -596,8 +871,8 @@ const SearchField: React.FC<{ vars: ItemVars }> = ({ vars }) => {
             {...{ search, inputRef, clear }}
             height={30}
             spinnerSize={20}
-            defaultValue={vars.filters.title}
-            inputProps={{ placeholder: t("manage.table.filter.by-title") }}
+            defaultValue={vars.filters[textField]}
+            inputProps={{ placeholder: t(placeholderKey) }}
         />
     </div>;
 };
@@ -983,7 +1258,15 @@ export const parsePaginationAndDirection = (
 };
 
 
-const FILTERS = ["title"];
+const FILTERS = [
+    "title",
+    "description",
+    "textField",
+    "start",
+    "end",
+    "visibility",
+    "writable",
+];
 
 const parseFilters = (queryParams: URLSearchParams): Record<string, string> => {
     const filters: Record<string, string> = {};
@@ -1049,4 +1332,47 @@ const varsToLink = (vars: ItemVars): string => {
     const url = new URL(document.location.href);
     url.search = decodeURIComponent(varsToQueryParams(vars).toString());
     return url.href;
+};
+
+/**
+ * Builds a GraphQL SearchFilter input from the parsed filter vars.
+ * Converts date strings (YYYY-MM-DD) to ISO DateTime values.
+ * For `end`, adds a full day so that filtering is inclusive of the end date.
+ */
+export const buildSearchFilter = (filters: Record<string, string>) => {
+    const textField = filters.textField ?? "title";
+    const textValue = filters.title ?? filters.description ?? null;
+
+    // Route text search to the selected field
+    const title = textField === "title" ? textValue : null;
+    const description = textField === "description"
+        ? textValue : null;
+
+    const start = filters.start ?? null;
+    const end = filters.end ?? null;
+    const visibility = filters.visibility ?? null;
+    const writable = filters.writable ?? null;
+
+    const createdStart = start ? `${start}T00:00:00Z` : null;
+    // Make end date inclusive: set to end of day
+    const createdEnd = end
+        ? new Date(
+            new Date(`${end}T00:00:00Z`).getTime() + 86400000 - 1,
+        ).toISOString()
+        : null;
+
+    const hasFilter = title || description
+        || createdStart || createdEnd
+        || visibility || writable;
+    return hasFilter
+        ? {
+            title,
+            description,
+            createdStart,
+            createdEnd,
+            visibility,
+            writable: writable === "true" ? true
+                : writable === "false" ? false : null,
+        }
+        : null;
 };

@@ -14,7 +14,10 @@ import { loadQuery } from "../../../relay";
 import { NotAuthorized } from "../../../ui/error";
 import { Creators, Thumbnail } from "../../../ui/Video";
 import { AccessIcon, keyOfId } from "../../../util";
-import { createQueryParamsParser, ManageItems, ListItem, CreateButton } from "../Shared/Table";
+import {
+    createQueryParamsParser, ManageItems, ListItem,
+    CreateButton, buildSearchFilter,
+} from "../Shared/Table";
 import { PartOfSeriesLink } from "../../../ui/Blocks/VideoList";
 import { Timestamp } from "../../../ui/metadata";
 import { UploadRoute } from "../../Upload";
@@ -34,11 +37,9 @@ export const ManageVideosRoute = makeRoute({
         }
 
         const vars = queryParamsToVideosVars(url.searchParams);
-        const titleFilter = vars.filters?.title ?? null;
         const queryVars = {
             ...vars,
-            // Todo: Adjust when more filter options are added
-            filter: titleFilter ? { title: titleFilter } : null,
+            filter: buildSearchFilter(vars.filters),
         };
         const queryRef = loadQuery<VideoManageQuery>(query, queryVars);
 

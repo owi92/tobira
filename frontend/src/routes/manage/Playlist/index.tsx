@@ -7,7 +7,10 @@ import { RootLoader } from "../../../layout/Root";
 import { makeRoute } from "../../../rauta";
 import { loadQuery } from "../../../relay";
 import { NotAuthorized } from "../../../ui/error";
-import { CreateButton, createQueryParamsParser, ListItem, ManageItems } from "../Shared/Table";
+import {
+    CreateButton, createQueryParamsParser, ListItem,
+    ManageItems, buildSearchFilter,
+} from "../Shared/Table";
 import { keyOfId } from "../../../util";
 import {
     PlaylistsManageQuery,
@@ -33,11 +36,9 @@ export const ManagePlaylistsRoute = makeRoute({
         }
 
         const vars = queryParamsToPlaylistsVars(url.searchParams);
-        const titleFilter = vars.filters?.title ?? null;
         const queryVars = {
             ...vars,
-            // Todo: Adjust when more filter options are added
-            filter: titleFilter ? { title: titleFilter } : null,
+            filter: buildSearchFilter(vars.filters),
         };
         const queryRef = loadQuery<PlaylistsManageQuery>(query, queryVars);
 
