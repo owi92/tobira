@@ -10,7 +10,6 @@ import { i18n, TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { bug, match, useColorScheme, WithTooltip } from "@opencast/appkit";
 import { css } from "@emotion/react";
-import { LuBanana, LuLock, LuSmilePlus } from "react-icons/lu";
 import { LucideHatGlasses } from "lucide-react";
 
 import CONFIG, { TranslatedString } from "../config";
@@ -416,27 +415,11 @@ export const AccessIcon: React.FC<AccessProps> = ({ item }) => {
     }
 
 
-    const { Icon, label, tooltip } = match(accessLevel, {
-        "public": () => ({
-            Icon: LuBanana,
-            label: "Public",
-            tooltip: "Can be seen by anyone",
-        }),
-        "private": () => ({
-            Icon: LucideHatGlasses,
-            label: "Private",
-            tooltip: "Can only be seen by you",
-        }),
-        "protected": () => ({
-            Icon: LuLock,
-            label: "Protected",
-            tooltip: "Is password protected",
-        }),
-        "shared": () => ({
-            Icon: LuSmilePlus,
-            label: "Shared",
-            tooltip: "Can be seen by a select group",
-        }),
+    const label = match(accessLevel, {
+        "public": () => "Public",
+        "private": () => "Private",
+        "protected": () => "Protected",
+        "shared": () => "Shared",
     });
 
     return <WithTooltip placement="top" tooltip={<>{label}</>}>

@@ -855,13 +855,11 @@ const SearchField: React.FC<{ vars: ItemVars }> = ({ vars }) => {
         : "manage.table.filter.by-title" as const;
 
     return <div css={{
-        // backgroundColor: COLORS.neutral10,
         svg: {
             left: 6,
             fontSize: 18,
         },
         input: {
-            // height: 30,
             border: 0,
             paddingLeft: 34,
             backgroundColor: COLORS.neutral10,
@@ -939,7 +937,6 @@ export const ListItem = <T extends ListItemProps>({ item, ...props }: GenericLis
         && Date.parse(createdTimestamp) + 150 * 60000 < Date.now());
 
     return <li css={{
-        // overflow: "hidden",
         position: "relative",
         display: "flex",
         flexDirection: "row",
@@ -1058,7 +1055,6 @@ export const ListItem = <T extends ListItemProps>({ item, ...props }: GenericLis
                     marginTop: "auto",
                     gap: "4px 24px",
                     flexWrap: "wrap",
-                    // fontSize: 11,
                     "&& svg": { fontSize: 13 },
                     div: { gap: 6 },
                     backgroundColor: COLORS.neutral10,
